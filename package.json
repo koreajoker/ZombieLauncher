@@ -1,25 +1,179 @@
 {
-  "name": "zombielauncher-v3",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "devDependencies": {
-    "electron": "^43.1.1",
-    "electron-builder": "^26.15.3",
-    "nodemon": "^3.1.14"
-  },
-  "dependencies": {
-    "axios": "^1.18.1",
-    "electron-store": "^11.0.2",
-    "fs-extra": "^11.3.6",
-    "minecraft-launcher-core": "^3.18.2",
-    "uuid": "^14.0.1"
-  }
+"name":"zombielauncher",
+
+"version":"1.0.0",
+
+"description":"ZombieLauncher Minecraft NeoForge Launcher",
+
+"main":"main.js",
+
+
+"scripts":{
+
+"start":"electron .",
+
+"dev":"nodemon --exec electron .",
+
+"build":"electron-builder"
+
+},
+
+
+"build":{
+
+
+"appId":
+"com.zombielauncher.launcher",
+
+
+"productName":
+"ZombieLauncher",
+
+
+"artifactName":
+"ZombieLauncher-${version}.${ext}",
+
+
+
+"directories":{
+
+
+"output":
+"release"
+
+
+},
+
+
+
+"files":[
+
+
+"main.js",
+
+"preload.js",
+
+"launcher/**/*",
+
+"auth/**/*",
+
+"admin/**/*",
+
+"src/**/*",
+
+"assets/**/*",
+
+"node_modules/**/*"
+
+
+],
+
+
+
+"win":{
+
+
+"icon":
+"assets/icon.ico",
+
+
+"target":[
+
+
+{
+
+
+"target":
+"nsis",
+
+"arch":[
+"x64"
+]
+
+
+},
+
+
+{
+
+
+"target":
+"portable",
+
+"arch":[
+"x64"
+]
+
+
+}
+
+
+]
+
+
+},
+
+
+
+"nsis":{
+
+
+"oneClick":false,
+
+"allowToChangeInstallationDirectory":true,
+
+
+"installerIcon":
+"assets/icon.ico",
+
+
+"uninstallerIcon":
+"assets/icon.ico",
+
+
+"createDesktopShortcut":true,
+
+
+"createStartMenuShortcut":true,
+
+
+"shortcutName":
+"ZombieLauncher"
+
+
+}
+
+
+
+},
+
+
+
+"dependencies":{
+
+"axios":"^1.7.0",
+
+"electron-store":"^10.0.0",
+
+"fs-extra":"^11.2.0",
+
+"minecraft-launcher-core":"^3.17.0",
+
+"uuid":"^11.0.0"
+
+},
+
+
+
+"devDependencies":{
+
+"electron":"^38.0.0",
+
+"electron-builder":"^26.0.0",
+
+"nodemon":"^3.1.0"
+
+}
+
+
 }
