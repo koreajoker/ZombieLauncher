@@ -4,6 +4,7 @@ const { spawn } = require("child_process");
 const { Client } = require("minecraft-launcher-core");
 const extractZip = require("extract-zip");
 const launcherPaths = require("./paths");
+const { writeLog } = require("./logger");
 
 const MINECRAFT_VERSION = "1.21.1";
 const NEOFORGE_VERSION = "21.1.232";
@@ -1252,12 +1253,17 @@ spawn(
 );
 
 
+let startupOutput = "";
+
+
 
 
 
     child.stdout.on(
         "data",
         data=>{
+
+            startupOutput += data.toString();
 
 
             console.log(
@@ -1277,6 +1283,8 @@ spawn(
     child.stderr.on(
         "data",
         data=>{
+
+            startupOutput += data.toString();
 
 
             console.log(
@@ -1307,6 +1315,35 @@ spawn(
         }
 
     );
+
+
+    await new Promise((resolve, reject)=>{
+
+        let startupComplete = false;
+
+        const timer = setTimeout(()=>{
+            startupComplete = true;
+            writeLog("MINECRAFT", "Minecraft process is running.");
+            resolve();
+        }, 10000);
+
+        child.once("error", error=>{
+            clearTimeout(timer);
+            const message = `Java 실행 실패: ${error.message}`;
+            writeLog("MINECRAFT ERROR", message);
+            reject(new Error(message));
+        });
+
+        child.once("close", code=>{
+            if(startupComplete) return;
+            clearTimeout(timer);
+            const detail = startupOutput.trim().slice(-3000);
+            const message = `Minecraft가 실행 직후 종료되었습니다 (코드 ${code}).${detail ? `\n\n${detail}` : ""}`;
+            writeLog("MINECRAFT ERROR", message);
+            reject(new Error(message));
+        });
+
+    });
 
 
 
