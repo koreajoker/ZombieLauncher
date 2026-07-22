@@ -1,39 +1,423 @@
-<section 
-class="profile"
-id="profile">
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>ZombieLauncher</title>
+
+<link rel="stylesheet" href="style.css">
+
+</head>
 
 
-<div class="avatar">
+<body>
+
+
+<!-- =========================
+ Window Bar
+========================= -->
+
+
+<div class="window-bar">
+
+
+    <div class="window-title">
+        ZombieLauncher
+    </div>
+
+
+    <button id="minimize-btn">
+        ─
+    </button>
+
+
+    <button id="maximize-btn">
+        □
+    </button>
+
+
+    <button id="close-btn">
+        ×
+    </button>
+
 
 </div>
 
 
-<div>
 
 
-<h3 id="username">
-
-Guest
-
-</h3>
 
 
-<span id="status">
+<!-- =========================
+ Launcher
+========================= -->
 
-Offline
 
-</span>
+<div class="launcher">
+
+
+
+    <div class="logo">
+
+        ZombieLauncher
+
+    </div>
+
+
+
+
+
+    <!-- PROFILE -->
+
+
+    <button id="profile-btn" class="profile">
+
+
+        <img
+
+        id="profile-image"
+
+        src="./assets/default.png"
+
+        >
+
+
+
+        <div>
+
+
+            <span id="nickname">
+
+                오프라인
+
+            </span>
+
+
+
+            <small>
+
+                Minecraft Account
+
+            </small>
+
+
+        </div>
+
+
+    </button>
+
+
+
+
+
+
+
+
+    <!-- RIGHT MENU -->
+
+
+    <div class="side-menu">
+
+
+        <button id="setting-btn" class="side-btn">
+
+            ⚙
+
+        </button>
+
+
+
+
+        <button id="discord-btn" class="side-btn">
+
+
+            <img
+
+            src="./assets/discord.png"
+
+            >
+
+
+        </button>
+
+
+    </div>
+
+
+
+
+
+
+
+
+    <!-- BOTTOM -->
+
+
+    <div class="bottom-bar">
+
+
+
+        <div>
+
+            서버
+
+            <span>
+
+                오프라인
+
+            </span>
+
+
+        </div>
+
+
+
+
+
+        <div>
+
+
+            MOJANG 상태
+
+
+            <span class="online">
+
+                ●
+
+            </span>
+
+
+        </div>
+
+
+
+
+
+
+        <button id="news-btn">
+
+            NEWS
+
+        </button>
+
+
+
+
+
+
+
+        <button id="play-btn">
+
+            PLAY
+
+        </button>
+
+        <div id="update-status" aria-live="polite"></div>
+
+
+
+
+
+
+        <div>
+
+            • Parasite (Minecraft 1.21.1)
+
+        </div>
+
+
+
+    </div>
+
+
 
 
 </div>
 
 
-</section>
 
-<button 
-id="loginButton"
-class="login">
 
-LOGIN
 
-</button>
+
+
+
+
+<!-- =========================
+ NEWS PANEL
+========================= -->
+
+
+<div id="news-panel">
+
+
+    <div class="news-header">
+
+
+        <span>
+
+            NEWS
+
+        </span>
+
+
+
+        <button id="news-close">
+
+            ×
+
+        </button>
+
+
+    </div>
+
+
+
+
+    <div id="news-content">
+
+
+        새로운 소식이 없습니다.
+
+
+    </div>
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+<!-- =========================
+ SETTINGS MODAL
+========================= -->
+
+
+<div id="settings-modal">
+
+
+
+    <div class="settings-box">
+
+
+
+        <h2>
+
+            설정
+
+        </h2>
+
+
+
+
+
+        <label>
+
+            최소 RAM
+
+        </label>
+
+
+
+        <input
+
+        id="min-ram"
+
+        type="number"
+
+        placeholder="1024"
+
+        >
+
+
+
+
+
+
+        <label>
+
+            최대 RAM
+
+        </label>
+
+
+
+
+        <input
+
+        id="max-ram"
+
+        type="number"
+
+        placeholder="4096"
+
+        >
+
+
+
+
+
+
+        <button id="save-settings">
+
+            저장
+
+        </button>
+
+
+
+
+
+
+        <button id="logout-btn">
+
+            로그아웃
+
+        </button>
+
+
+
+
+
+
+
+        <button id="settings-close">
+
+            닫기
+
+        </button>
+
+
+
+
+
+    </div>
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+<script src="renderer.js"></script>
+
+
+</body>
+
+
+</html>

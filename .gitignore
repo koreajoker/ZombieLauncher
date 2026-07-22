@@ -4,3 +4,8 @@ dist/
 *.log
 
 .ZombieLauncher/
+server/.env
+admin/.env
+.npm-cache/
+.electron-cache/
+.electron-builder-cache/

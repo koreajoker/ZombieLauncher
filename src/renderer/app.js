@@ -115,3 +115,21 @@ update.version
 
 
 };
+
+window.launcher.onProgress(
+(value)=>{
+
+
+document
+.getElementById(
+"progress"
+)
+.innerText=
+"UPDATE "
++
+Math.floor(value*100)
++
+"%";
+
+
+});

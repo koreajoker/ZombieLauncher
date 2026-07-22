@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: zombielauncher-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: launcher
+      - key: PUBLIC_API_URL
+        value: https://zombielauncher-api.onrender.com
+      - key: CONTENT_VERSION
+        value: "1"
+      - key: MAX_UPLOAD_BYTES
+        value: "209715200"
+      - key: STORAGE_CHUNK_BYTES
+        value: "26214400"

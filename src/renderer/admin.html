@@ -1,95 +1,102 @@
 <!DOCTYPE html>
-
-<html>
+<html lang="ko">
 
 <head>
 
+<meta charset="UTF-8">
+
+<title>ZombieLauncher Admin</title>
+
+<link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="admin.css">
 
 </head>
 
-
 <body>
 
+<div class="admin-window">
 
-<h1>
-ZombieLauncher Admin
-</h1>
+<h1>ZombieLauncher 관리자</h1>
 
+<div class="admin-box">
 
-<div>
+<label>Discord 주소</label>
 
-
-<input 
-id="password"
-type="password"
-placeholder="Admin Password"
+<input
+id="discord"
+placeholder="https://discord.gg/"
 >
 
+<label>뉴스</label>
 
-<button id="login">
+<textarea
+id="news"
+placeholder="런처 뉴스 입력"
+></textarea>
 
-LOGIN
+<label>공지</label>
 
-</button>
-
-
-</div>
-
-
+<textarea
+id="notice"
+placeholder="공지 입력"
+></textarea>
 
 <hr>
 
+<h2>📦 모드 업로드</h2>
 
-<section id="panel">
-
-
-<h2>
-Upload
-</h2>
-
-
-<select id="type">
-
-
-<option value="mods">
-Mods
-</option>
-
-
-<option value="shaderpacks">
-Shaders
-</option>
-
-
-<option value="resourcepacks">
-Resource Packs
-</option>
-
-
-</select>
-
-
-<input 
-id="file"
-type="file"
->
-
-
-
-<button id="upload">
-
-UPLOAD
+<button id="uploadMod">
+모드 선택 및 업로드
 
 </button>
 
+<div id="modList"></div>
 
-</section>
+<hr>
 
+<h2>🎨 쉐이더 업로드</h2>
 
+<button id="uploadShader">
+쉐이더 선택 및 업로드
+
+</button>
+
+<div id="shaderList"></div>
+
+<hr>
+
+<h2>🖼 리소스팩 업로드</h2>
+
+<button id="uploadResourcepack">
+리소스팩 선택 및 업로드
+
+</button>
+
+<div id="resourcepackList"></div>
+
+<hr>
+
+<div class="admin-actions">
+
+<button id="save-btn">
+
+💾 저장
+
+</button>
+
+<button id="close-btn">
+
+닫기
+
+</button>
+
+</div>
+
+</div>
+
+</div>
 
 <script src="admin.js"></script>
-
 
 </body>
 

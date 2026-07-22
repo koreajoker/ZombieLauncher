@@ -2,10 +2,10 @@ const path=require("path");
 const os=require("os");
 
 
-const ZOMBIE_FOLDER =
+const ROOT =
 path.join(
-os.homedir(),
-".ZombieLauncher"
+    os.homedir(),
+    ".ZombieLauncher"
 );
 
 
@@ -13,52 +13,51 @@ os.homedir(),
 module.exports={
 
 
-zombie:
-ZOMBIE_FOLDER,
+root:ROOT,
 
 
 minecraft:
 path.join(
-ZOMBIE_FOLDER,
-"minecraft"
+    ROOT,
+    "minecraft"
 ),
 
 
 mods:
 path.join(
-ZOMBIE_FOLDER,
-"minecraft",
-"mods"
+    ROOT,
+    "minecraft",
+    "mods"
 ),
 
 
 shaderpacks:
 path.join(
-ZOMBIE_FOLDER,
-"minecraft",
-"shaderpacks"
+    ROOT,
+    "minecraft",
+    "shaderpacks"
 ),
 
 
 resourcepacks:
 path.join(
-ZOMBIE_FOLDER,
-"minecraft",
-"resourcepacks"
+    ROOT,
+    "minecraft",
+    "resourcepacks"
 ),
 
 
-updates:
+logs:
 path.join(
-ZOMBIE_FOLDER,
-"updates"
+    ROOT,
+    "logs"
 ),
 
 
 config:
 path.join(
-ZOMBIE_FOLDER,
-"config"
+    ROOT,
+    "config"
 )
 
 

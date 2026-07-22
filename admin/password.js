@@ -1,23 +1,64 @@
 const crypto=require("crypto");
 
+const fs=require("fs-extra");
 
-const ADMIN_PASSWORD_HASH =
-"CHANGE_PASSWORD_HASH";
+
+const file=
+"admin/password.hash";
+
+
+
+function hash(value){
+
+
+return crypto
+.createHash("sha256")
+.update(value)
+.digest("hex");
+
+
+}
 
 
 
 function checkPassword(password){
 
 
-const hash =
-crypto
-.createHash("sha256")
-.update(password)
-.digest("hex");
+if(
+!fs.existsSync(file)
+){
+
+return false;
+
+}
 
 
 
-return hash===ADMIN_PASSWORD_HASH;
+const saved =
+fs.readFileSync(
+file,
+"utf8"
+);
+
+
+
+return hash(password)===saved;
+
+
+}
+
+
+
+function createPassword(password){
+
+
+fs.writeFileSync(
+
+file,
+
+hash(password)
+
+);
 
 
 }
@@ -25,5 +66,9 @@ return hash===ADMIN_PASSWORD_HASH;
 
 
 module.exports={
-checkPassword
+
+checkPassword,
+
+createPassword
+
 };

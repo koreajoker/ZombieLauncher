@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+
+<body>
+
+<h3>관리자 비밀번호</h3>
+
+<input id="pw" type="password">
+
+<button id="login">
+확인
+</button>
+
+
+<script>
+
+
+document
+.getElementById("login")
+.onclick=async()=>{
+
+
+const pw =
+document.getElementById("pw").value;
+
+
+const ok =
+await window.launcher.adminLogin(
+pw
+);
+
+
+if(ok){
+
+window.api.openAdmin();
+
+window.close();
+
+}
+else{
+
+alert(
+"비밀번호 오류"
+);
+
+}
+
+
+};
+
+
+</script>
+
+
+</body>
+
+</html>
