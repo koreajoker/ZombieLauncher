@@ -380,6 +380,11 @@ document.getElementById(
 "logout-btn"
 );
 
+const uninstallBtn =
+document.getElementById(
+"uninstall-btn"
+);
+
 
 
 const minRam =
@@ -522,6 +527,25 @@ settingsModal.style.display =
 
 };
 
+
+}
+
+if(uninstallBtn){
+
+uninstallBtn.onclick = async()=>{
+
+uninstallBtn.disabled = true;
+uninstallBtn.innerText = "삭제 중...";
+
+const result = await window.launcher.uninstall();
+
+if(!result.success){
+uninstallBtn.disabled = false;
+uninstallBtn.innerText = "설치 삭제";
+if(!result.cancelled) alert(result.message || "설치 삭제에 실패했습니다.");
+}
+
+};
 
 }
 

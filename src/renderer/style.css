@@ -1336,6 +1336,14 @@ background:#22c55e;
 
 }
 
+.settings-box .danger-button{
+background:#991b1b;
+}
+
+.settings-box .danger-button:hover{
+background:#dc2626;
+}
+
 #update-status {
     min-height: 20px;
     margin-top: 10px;

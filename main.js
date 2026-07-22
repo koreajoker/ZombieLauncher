@@ -1,10 +1,12 @@
 const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const { spawn } = require("child_process");
 const { microsoftLogin } = require("./auth/microsoft");
 const { launchMinecraft } = require("./launcher/minecraft");
 const { saveAccount, getAccount, removeAccount } = require("./launcher/account");
 const { update } = require("./launcher/updater");
+const launcherPaths = require("./launcher/paths");
 
 const API_URL = (
     process.env.ZOMBIE_API_URL ||
@@ -204,6 +206,41 @@ ipcMain.handle("load-launcher-config", async () => {
 });
 ipcMain.handle("save-settings", (_event, data) => { writeConfig(SETTINGS_CONFIG, data); return true; });
 ipcMain.handle("load-settings", () => readConfig(SETTINGS_CONFIG, { minRam: 1024, maxRam: 4096 }));
+ipcMain.handle("uninstall-launcher", async () => {
+    if (!app.isPackaged) return { success: false, message: "개발 실행에서는 설치 삭제를 사용할 수 없습니다." };
+
+    const confirmation = await dialog.showMessageBox(mainWindow, {
+        type: "warning",
+        buttons: ["취소", "완전히 삭제"],
+        defaultId: 0,
+        cancelId: 0,
+        title: "ZombieLauncher 설치 삭제",
+        message: "ZombieLauncher를 완전히 삭제할까요?",
+        detail: "앱과 로그인 정보, 설정, Minecraft, NeoForge, 모드, 리소스팩, 셰이더 및 캐시가 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
+    });
+    if (confirmation.response !== 1) return { success: false, cancelled: true };
+
+    const installDirectory = path.dirname(app.getPath("exe"));
+    const uninstaller = path.join(installDirectory, "Uninstall ZombieLauncher.exe");
+    if (!fs.existsSync(uninstaller)) {
+        return { success: false, message: "제거 프로그램을 찾을 수 없습니다. Windows 설정의 설치된 앱에서 제거해 주세요." };
+    }
+
+    const dataPaths = [
+        launcherPaths.root,
+        app.getPath("userData"),
+        path.join(app.getPath("appData"), ".ZombieLauncher"),
+        path.join(app.getPath("appData"), "zombielauncher-v3")
+    ];
+    for (const target of new Set(dataPaths.map(item => path.resolve(item)))) {
+        if (target !== installDirectory) await fs.promises.rm(target, { recursive: true, force: true });
+    }
+
+    const child = spawn(uninstaller, ["/S"], { detached: true, stdio: "ignore", windowsHide: true });
+    child.unref();
+    setTimeout(() => app.quit(), 250);
+    return { success: true };
+});
 
 ipcMain.handle("login-microsoft", async () => {
     try {

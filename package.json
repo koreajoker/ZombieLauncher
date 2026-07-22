@@ -1,6 +1,6 @@
 {
   "name": "zombielauncher",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "ZombieLauncher Minecraft NeoForge Launcher",
   "main": "main.js",
   "scripts": {
@@ -46,6 +46,7 @@
       "uninstallerIcon": "src/renderer/assets/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": true,
       "shortcutName": "ZombieLauncher"
     }
   },

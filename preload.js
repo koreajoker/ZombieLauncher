@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("launcher", {
     play: () => ipcRenderer.invoke("minecraft-launch"),
     saveSettings: data => ipcRenderer.invoke("save-settings", data),
     loadSettings: () => ipcRenderer.invoke("load-settings"),
+    uninstall: () => ipcRenderer.invoke("uninstall-launcher"),
     adminLogin: password => ipcRenderer.invoke("admin-login", password),
     loadLauncherConfig: () => ipcRenderer.invoke("load-launcher-config"),
     checkUpdate: () => ipcRenderer.invoke("check-update"),
