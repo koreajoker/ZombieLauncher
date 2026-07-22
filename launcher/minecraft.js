@@ -2,12 +2,15 @@ const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
 const { Client } = require("minecraft-launcher-core");
+const extractZip = require("extract-zip");
 const launcherPaths = require("./paths");
 
 const MINECRAFT_VERSION = "1.21.1";
 const NEOFORGE_VERSION = "21.1.232";
 const NEOFORGE_ID = `neoforge-${NEOFORGE_VERSION}`;
 const NEOFORGE_INSTALLER_URL = `https://maven.neoforged.net/releases/net/neoforged/neoforge/${NEOFORGE_VERSION}/neoforge-${NEOFORGE_VERSION}-installer.jar`;
+const JAVA_RUNTIME_URL = "https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse";
+let activeJava = null;
 
 // ==================================================
 // Launcher Settings
@@ -98,9 +101,23 @@ function loadSettings(){
 const GAME_DIR = launcherPaths.minecraft;
 
 function javaExecutable(){
+    if(activeJava) return activeJava;
     return process.env.JAVA_HOME
         ? path.join(process.env.JAVA_HOME, "bin", "java.exe")
         : "java";
+}
+
+function findFile(directory, name){
+    if(!fs.existsSync(directory)) return null;
+    for(const entry of fs.readdirSync(directory, { withFileTypes: true })){
+        const target = path.join(directory, entry.name);
+        if(entry.isFile() && entry.name.toLowerCase() === name.toLowerCase()) return target;
+        if(entry.isDirectory()){
+            const found = findFile(target, name);
+            if(found) return found;
+        }
+    }
+    return null;
 }
 
 function runProcess(command, args, options = {}){
@@ -128,6 +145,25 @@ async function downloadFile(url, destination){
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.writeFileSync(temporary, Buffer.from(await response.arrayBuffer()));
     fs.renameSync(temporary, destination);
+}
+
+async function ensureJava21(){
+    const runtimeDirectory = path.join(launcherPaths.root, "runtime", "java21");
+    const installed = findFile(runtimeDirectory, "java.exe");
+    if(installed){
+        activeJava = installed;
+        return installed;
+    }
+
+    const archive = path.join(launcherPaths.root, "cache", "java21.zip");
+    if(!fs.existsSync(archive)) await downloadFile(JAVA_RUNTIME_URL, archive);
+    fs.rmSync(runtimeDirectory, { recursive: true, force: true });
+    fs.mkdirSync(runtimeDirectory, { recursive: true });
+    await extractZip(archive, { dir: runtimeDirectory });
+    const java = findFile(runtimeDirectory, "java.exe");
+    if(!java) throw new Error("Java 21 자동 설치에 실패했습니다.");
+    activeJava = java;
+    return java;
 }
 
 async function installVanilla(account){
@@ -162,6 +198,25 @@ async function installNeoForge(){
     const neoJson = path.join(GAME_DIR, "versions", NEOFORGE_ID, `${NEOFORGE_ID}.json`);
     if(fs.existsSync(neoJson)) return;
 
+    const profilesFile = path.join(GAME_DIR, "launcher_profiles.json");
+    if(!fs.existsSync(profilesFile)){
+        fs.writeFileSync(profilesFile, JSON.stringify({
+            profiles: {
+                ZombieLauncher: {
+                    name: "ZombieLauncher",
+                    type: "custom",
+                    created: new Date().toISOString(),
+                    lastUsed: new Date().toISOString(),
+                    lastVersionId: MINECRAFT_VERSION,
+                    gameDir: GAME_DIR
+                }
+            },
+            selectedProfile: "ZombieLauncher",
+            settings: {},
+            version: 3
+        }, null, 2), "utf8");
+    }
+
     const installerPath = path.join(launcherPaths.root, "cache", `neoforge-${NEOFORGE_VERSION}-installer.jar`);
     if(!fs.existsSync(installerPath)) await downloadFile(NEOFORGE_INSTALLER_URL, installerPath);
     await runProcess(javaExecutable(), ["-jar", installerPath, "--installClient", GAME_DIR]);
@@ -170,6 +225,7 @@ async function installNeoForge(){
 
 async function ensureGameInstalled(account){
     fs.mkdirSync(GAME_DIR, { recursive: true });
+    await ensureJava21();
     await installVanilla(account);
     await installNeoForge();
 }
