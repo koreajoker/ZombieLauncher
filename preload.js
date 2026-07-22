@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("launcher", {
     saveSettings: data => ipcRenderer.invoke("save-settings", data),
     loadSettings: () => ipcRenderer.invoke("load-settings"),
     uninstall: () => ipcRenderer.invoke("uninstall-launcher"),
+    onUninstallProgress: callback => ipcRenderer.on("uninstall-progress", (_event, data) => callback(data)),
     adminLogin: password => ipcRenderer.invoke("admin-login", password),
     loadLauncherConfig: () => ipcRenderer.invoke("load-launcher-config"),
     checkUpdate: () => ipcRenderer.invoke("check-update"),

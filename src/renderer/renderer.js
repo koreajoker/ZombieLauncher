@@ -385,6 +385,33 @@ document.getElementById(
 "uninstall-btn"
 );
 
+const uninstallProgress = document.getElementById("uninstall-progress");
+const uninstallProgressBar = document.getElementById("uninstall-progress-bar");
+const uninstallProgressText = document.getElementById("uninstall-progress-text");
+
+const formatBytes = bytes => {
+if(bytes >= 1073741824) return (bytes / 1073741824).toFixed(1) + " GB";
+if(bytes >= 1048576) return (bytes / 1048576).toFixed(1) + " MB";
+return (bytes / 1024).toFixed(1) + " KB";
+};
+
+window.launcher.onUninstallProgress(data=>{
+if(!uninstallProgress) return;
+uninstallProgress.hidden = false;
+if(data.phase === "scan"){
+uninstallProgressText.innerText = "삭제할 파일을 확인하는 중...";
+uninstallProgressBar.style.width = "0%";
+return;
+}
+const percent = data.totalFiles ? Math.round((data.deletedFiles / data.totalFiles) * 100) : 100;
+uninstallProgressBar.style.width = percent + "%";
+if(data.phase === "uninstall"){
+uninstallProgressText.innerText = "데이터 삭제 완료 · 앱 제거 중...";
+}else{
+uninstallProgressText.innerText = `${percent}% · ${formatBytes(data.deletedBytes)} / ${formatBytes(data.totalBytes)} · ${data.deletedFiles}/${data.totalFiles}개`;
+}
+});
+
 
 
 const minRam =
@@ -536,6 +563,7 @@ uninstallBtn.onclick = async()=>{
 
 uninstallBtn.disabled = true;
 uninstallBtn.innerText = "삭제 중...";
+if(uninstallProgress) uninstallProgress.hidden = false;
 
 const result = await window.launcher.uninstall();
 
@@ -543,6 +571,7 @@ if(!result.success){
 uninstallBtn.disabled = false;
 uninstallBtn.innerText = "설치 삭제";
 if(!result.cancelled) alert(result.message || "설치 삭제에 실패했습니다.");
+if(uninstallProgress) uninstallProgress.hidden = true;
 }
 
 };

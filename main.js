@@ -206,7 +206,7 @@ ipcMain.handle("load-launcher-config", async () => {
 });
 ipcMain.handle("save-settings", (_event, data) => { writeConfig(SETTINGS_CONFIG, data); return true; });
 ipcMain.handle("load-settings", () => readConfig(SETTINGS_CONFIG, { minRam: 1024, maxRam: 4096 }));
-ipcMain.handle("uninstall-launcher", async () => {
+ipcMain.handle("uninstall-launcher", async event => {
     if (!app.isPackaged) return { success: false, message: "개발 실행에서는 설치 삭제를 사용할 수 없습니다." };
 
     const confirmation = await dialog.showMessageBox(mainWindow, {
@@ -232,10 +232,59 @@ ipcMain.handle("uninstall-launcher", async () => {
         path.join(app.getPath("appData"), ".ZombieLauncher"),
         path.join(app.getPath("appData"), "zombielauncher-v3")
     ];
-    for (const target of new Set(dataPaths.map(item => path.resolve(item)))) {
-        if (target !== installDirectory) await fs.promises.rm(target, { recursive: true, force: true });
+
+    const targets = [...new Set(dataPaths.map(item => path.resolve(item)))]
+        .filter(target => target !== installDirectory && fs.existsSync(target));
+    const files = [];
+    const directories = [];
+    const scan = async directory => {
+        let entries = [];
+        try { entries = await fs.promises.readdir(directory, { withFileTypes: true }); } catch { return; }
+        for (const entry of entries) {
+            const target = path.join(directory, entry.name);
+            if (entry.isDirectory() && !entry.isSymbolicLink()) {
+                await scan(target);
+                directories.push(target);
+            } else {
+                let size = 0;
+                try { size = (await fs.promises.lstat(target)).size; } catch {}
+                files.push({ target, size });
+            }
+        }
+    };
+
+    event.sender.send("uninstall-progress", { phase: "scan" });
+    for (const target of targets) {
+        await scan(target);
+        directories.push(target);
     }
 
+    const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+    let deletedBytes = 0;
+    let deletedFiles = 0;
+    event.sender.send("uninstall-progress", {
+        phase: "delete", totalBytes, deletedBytes, totalFiles: files.length, deletedFiles
+    });
+
+    for (const file of files) {
+        try {
+            await fs.promises.rm(file.target, { force: true });
+            deletedBytes += file.size;
+        } catch {}
+        deletedFiles += 1;
+        if (deletedFiles % 25 === 0 || deletedFiles === files.length) {
+            event.sender.send("uninstall-progress", {
+                phase: "delete", totalBytes, deletedBytes, totalFiles: files.length, deletedFiles
+            });
+        }
+    }
+    for (const directory of directories) {
+        try { await fs.promises.rm(directory, { recursive: true, force: true }); } catch {}
+    }
+
+    event.sender.send("uninstall-progress", {
+        phase: "uninstall", totalBytes, deletedBytes, totalFiles: files.length, deletedFiles
+    });
     const child = spawn(uninstaller, ["/S"], { detached: true, stdio: "ignore", windowsHide: true });
     child.unref();
     setTimeout(() => app.quit(), 250);
