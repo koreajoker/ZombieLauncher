@@ -1,7 +1,13 @@
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
+const { Client } = require("minecraft-launcher-core");
 const launcherPaths = require("./paths");
+
+const MINECRAFT_VERSION = "1.21.1";
+const NEOFORGE_VERSION = "21.1.232";
+const NEOFORGE_ID = `neoforge-${NEOFORGE_VERSION}`;
+const NEOFORGE_INSTALLER_URL = `https://maven.neoforged.net/releases/net/neoforged/neoforge/${NEOFORGE_VERSION}/neoforge-${NEOFORGE_VERSION}-installer.jar`;
 
 // ==================================================
 // Launcher Settings
@@ -90,6 +96,83 @@ function loadSettings(){
 // ==================================================
 
 const GAME_DIR = launcherPaths.minecraft;
+
+function javaExecutable(){
+    return process.env.JAVA_HOME
+        ? path.join(process.env.JAVA_HOME, "bin", "java.exe")
+        : "java";
+}
+
+function runProcess(command, args, options = {}){
+    return new Promise((resolve, reject) => {
+        const child = spawn(command, args, {
+            cwd: options.cwd || GAME_DIR,
+            windowsHide: true,
+            stdio: ["ignore", "pipe", "pipe"]
+        });
+        let output = "";
+        child.stdout.on("data", data => { output += data.toString(); });
+        child.stderr.on("data", data => { output += data.toString(); });
+        child.on("error", reject);
+        child.on("close", code => {
+            if(code === 0) resolve(output);
+            else reject(new Error(`설치 프로그램 종료 코드 ${code}: ${output.slice(-1500)}`));
+        });
+    });
+}
+
+async function downloadFile(url, destination){
+    const response = await fetch(url, { signal: AbortSignal.timeout(120000) });
+    if(!response.ok) throw new Error(`다운로드 실패 (${response.status}): ${url}`);
+    const temporary = destination + ".download";
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.writeFileSync(temporary, Buffer.from(await response.arrayBuffer()));
+    fs.renameSync(temporary, destination);
+}
+
+async function installVanilla(account){
+    const versionJson = path.join(GAME_DIR, "versions", MINECRAFT_VERSION, `${MINECRAFT_VERSION}.json`);
+    if(fs.existsSync(versionJson)) return;
+
+    const installer = new Client();
+    installer.on("debug", message => console.log("MINECRAFT INSTALL:", message));
+    installer.on("data", message => console.log("MINECRAFT INSTALL:", message));
+    const child = await installer.launch({
+        authorization: {
+            access_token: account.accessToken,
+            client_token: account.clientId || "",
+            uuid: account.uuid,
+            name: account.name,
+            user_properties: "{}",
+            meta: { type: "msa" }
+        },
+        root: GAME_DIR,
+        version: { number: MINECRAFT_VERSION, type: "release" },
+        memory: { max: "2G", min: "1G" },
+        javaPath: javaExecutable(),
+        overrides: { detached: false }
+    });
+    if(!child || !fs.existsSync(versionJson)) {
+        throw new Error("Minecraft 1.21.1 자동 설치에 실패했습니다. Java 21 설치 여부를 확인하세요.");
+    }
+    child.kill();
+}
+
+async function installNeoForge(){
+    const neoJson = path.join(GAME_DIR, "versions", NEOFORGE_ID, `${NEOFORGE_ID}.json`);
+    if(fs.existsSync(neoJson)) return;
+
+    const installerPath = path.join(launcherPaths.root, "cache", `neoforge-${NEOFORGE_VERSION}-installer.jar`);
+    if(!fs.existsSync(installerPath)) await downloadFile(NEOFORGE_INSTALLER_URL, installerPath);
+    await runProcess(javaExecutable(), ["-jar", installerPath, "--installClient", GAME_DIR]);
+    if(!fs.existsSync(neoJson)) throw new Error("NeoForge 자동 설치에 실패했습니다. Java 21이 필요합니다.");
+}
+
+async function ensureGameInstalled(account){
+    fs.mkdirSync(GAME_DIR, { recursive: true });
+    await installVanilla(account);
+    await installNeoForge();
+}
 
 
 
@@ -923,6 +1006,8 @@ console.log(
     JSON.stringify(account,null,2)
 );
 
+    await ensureGameInstalled(account);
+
     const version =
     findVersion();
 
@@ -955,16 +1040,7 @@ buildLaunch(
 
 
 
-    const java =
-    process.env.JAVA_HOME
-    ?
-    path.join(
-        process.env.JAVA_HOME,
-        "bin",
-        "java.exe"
-    )
-    :
-    "java";
+    const java = javaExecutable();
 
 
 
