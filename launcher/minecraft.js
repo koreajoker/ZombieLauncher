@@ -1198,7 +1198,11 @@ fs.writeFileSync(
             arg.includes(" ")
         ){
 
-            return `"${arg}"`;
+            const escaped = arg
+            .replaceAll("\\", "\\\\")
+            .replaceAll('"', '\\"');
+
+            return `"${escaped}"`;
 
         }
 
