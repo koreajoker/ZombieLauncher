@@ -856,6 +856,14 @@ function buildLaunch(
     );
 
 
+    const configuredAssetIndex = versionData.assetIndex?.id || "17";
+    const assetIndexCandidates = [configuredAssetIndex, MINECRAFT_VERSION, versionData.id]
+    .filter(Boolean);
+    const assetIndexName = assetIndexCandidates.find(candidate =>
+        fs.existsSync(path.join(GAME_DIR, "assets", "indexes", `${candidate}.json`))
+    ) || configuredAssetIndex;
+
+
     const vars = {
 
 
@@ -892,8 +900,7 @@ function buildLaunch(
 
 
         assets_index_name:
-        versionData.assetIndex?.id ||
-        "17",
+        assetIndexName,
 
 
 

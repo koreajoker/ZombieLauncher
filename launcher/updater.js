@@ -78,11 +78,7 @@ async function enableResourcePacks(files, previous) {
     const optionsFile = path.join(paths.minecraft, "options.txt");
 
     const desired = files
-        .filter(file => {
-            if (file.type !== "resourcepack") return false;
-            const normalized = path.basename(file.name).replace(/§./g, "").toLowerCase();
-            return !(normalized.includes("immersive") && normalized.includes("interfaces"));
-        })
+        .filter(file => file.type === "resourcepack")
         .map(file => `file/${path.basename(file.name)}`);
     const previouslyManaged = new Set(
         Object.keys(previous.files || {})
@@ -101,11 +97,7 @@ async function enableResourcePacks(files, previous) {
     if (index >= 0) {
         try { enabled = JSON.parse(lines[index].slice("resourcePacks:".length)); } catch { enabled = []; }
     }
-    enabled = enabled.filter(item => {
-        if (previouslyManaged.has(item)) return false;
-        const normalized = item.replace(/§./g, "").toLowerCase();
-        return !(normalized.includes("immersive") && normalized.includes("interfaces"));
-    });
+    enabled = enabled.filter(item => !previouslyManaged.has(item));
     for (const item of desired) if (!enabled.includes(item)) enabled.push(item);
     const value = `resourcePacks:${JSON.stringify(enabled)}`;
     if (index >= 0) lines[index] = value;
