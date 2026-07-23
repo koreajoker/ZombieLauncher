@@ -76,7 +76,6 @@ async function writeState(state) {
 
 async function enableResourcePacks(files, previous) {
     const optionsFile = path.join(paths.minecraft, "options.txt");
-    if (!await fs.pathExists(optionsFile)) return;
 
     const desired = files
         .filter(file => file.type === "resourcepack")
@@ -86,7 +85,13 @@ async function enableResourcePacks(files, previous) {
             .filter(key => key.startsWith("resourcepack/"))
             .map(key => `file/${key.slice("resourcepack/".length)}`)
     );
-    const lines = (await fs.readFile(optionsFile, "utf8")).split(/\r?\n/);
+    await fs.ensureDir(path.dirname(optionsFile));
+    const lines = await fs.pathExists(optionsFile)
+        ? (await fs.readFile(optionsFile, "utf8")).split(/\r?\n/)
+        : [];
+    const languageIndex = lines.findIndex(line => line.startsWith("lang:"));
+    if (languageIndex >= 0) lines[languageIndex] = "lang:ko_kr";
+    else lines.push("lang:ko_kr");
     const index = lines.findIndex(line => line.startsWith("resourcePacks:"));
     let enabled = [];
     if (index >= 0) {
