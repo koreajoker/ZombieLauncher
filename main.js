@@ -23,6 +23,18 @@ let adminAuthenticated = false;
 let updatePromise = null;
 let adminCredential = null;
 
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+    app.quit();
+} else {
+    app.on("second-instance", () => {
+        if (!mainWindow) return;
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+    });
+}
+
 // `npm start` 개발 실행에서는 로컬 API를 함께 실행한다.
 // 배포 빌드는 Render API만 사용하며 server/.env를 포함하지 않는다.
 if (!app.isPackaged && !process.env.ZOMBIE_API_URL) {
@@ -117,7 +129,7 @@ async function runAutomaticUpdate() {
     return updatePromise;
 }
 
-app.whenReady().then(createWindow);
+if (hasSingleInstanceLock) app.whenReady().then(createWindow);
 app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
 

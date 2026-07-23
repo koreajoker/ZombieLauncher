@@ -1,478 +1,142 @@
-const {
-    BrowserWindow
-} = require("electron");
-
+const { BrowserWindow } = require("electron");
 const axios = require("axios");
 const http = require("http");
+const { xboxLogin } = require("./xbox");
+const { xstsLogin } = require("./xsts");
+const { minecraftLogin, profile } = require("./minecraft");
 
+const CLIENT_ID = "219e3606-4a8f-4d80-9eb8-6d381dc45c2b";
+const CALLBACK_PORT = 4567;
+const REDIRECT_URI = `http://127.0.0.1:${CALLBACK_PORT}/callback`;
 
-const {
-    xboxLogin
-} = require("./xbox");
+let activeLogin = null;
+let loginWindow = null;
 
+function microsoftLogin() {
+    if (activeLogin) {
+        if (loginWindow && !loginWindow.isDestroyed()) {
+            loginWindow.show();
+            loginWindow.focus();
+        }
+        return activeLogin;
+    }
 
-const {
-    xstsLogin
-} = require("./xsts");
+    activeLogin = new Promise((resolve, reject) => {
+        let settled = false;
+        let callbackServer = null;
+        let timeout = null;
 
+        const finish = (error, account) => {
+            if (settled) return;
+            settled = true;
+            if (timeout) clearTimeout(timeout);
+            if (callbackServer?.listening) callbackServer.close();
+            if (loginWindow && !loginWindow.isDestroyed()) loginWindow.close();
+            loginWindow = null;
+            if (error) reject(error);
+            else resolve(account);
+        };
 
-const {
-    minecraftLogin,
-    profile
-} = require("./minecraft");
+        callbackServer = http.createServer(async (req, res) => {
+            if (!req.url?.startsWith("/callback")) {
+                res.writeHead(404);
+                res.end();
+                return;
+            }
 
+            const callbackURL = new URL(req.url, REDIRECT_URI);
+            const oauthError = callbackURL.searchParams.get("error_description");
+            const code = callbackURL.searchParams.get("code");
 
+            if (!code) {
+                res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+                res.end("<h2>ZombieLauncher 로그인 실패</h2><p>창을 닫아주세요.</p>");
+                finish(new Error(oauthError || "Microsoft 인증 코드가 없습니다."));
+                return;
+            }
 
-const CLIENT_ID =
-"219e3606-4a8f-4d80-9eb8-6d381dc45c2b";
+            res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+            res.end("<h2>ZombieLauncher 로그인 완료</h2><p>이 창은 자동으로 닫힙니다.</p>");
+            callbackServer.close();
 
+            try {
+                const microsoftToken = await exchangeCode(code);
+                const xbox = await xboxLogin(microsoftToken);
+                const xsts = await xstsLogin(xbox);
+                const minecraft = await minecraftLogin(xsts);
+                const user = await profile(minecraft.access_token);
+                finish(null, {
+                    name: user.name,
+                    uuid: user.id,
+                    minecraftToken: minecraft.access_token,
+                    accessToken: minecraft.access_token,
+                    xuid: xbox.DisplayClaims.xui[0].xid,
+                    userType: "msa",
+                    clientId: CLIENT_ID,
+                    profile: { id: user.id, name: user.name }
+                });
+            } catch (error) {
+                console.error("LOGIN ERROR", error.response?.data || error.message);
+                finish(new Error(error.response?.data?.errorMessage || error.message || "Microsoft 로그인 실패"));
+            }
+        });
 
-const REDIRECT_URI =
-"http://127.0.0.1:4567/callback";
+        callbackServer.once("error", error => {
+            const message = error.code === "EADDRINUSE"
+                ? "Microsoft 로그인 포트가 이미 사용 중입니다. 실행 중인 ZombieLauncher를 모두 종료한 뒤 다시 실행하세요."
+                : `Microsoft 로그인 서버 오류: ${error.message}`;
+            finish(new Error(message));
+        });
 
+        callbackServer.listen(CALLBACK_PORT, "127.0.0.1", () => {
+            loginWindow = new BrowserWindow({
+                width: 500,
+                height: 700,
+                resizable: false,
+                webPreferences: {
+                    nodeIntegration: false,
+                    contextIsolation: true,
+                    sandbox: true
+                }
+            });
 
+            const params = new URLSearchParams({
+                client_id: CLIENT_ID,
+                response_type: "code",
+                redirect_uri: REDIRECT_URI,
+                response_mode: "query",
+                scope: "XboxLive.signin offline_access openid profile"
+            });
+            loginWindow.loadURL(`https://login.live.com/oauth20_authorize.srf?${params}`);
+            loginWindow.on("closed", () => {
+                loginWindow = null;
+                if (!settled) finish(new Error("Microsoft 로그인이 취소되었습니다."));
+            });
+        });
 
+        timeout = setTimeout(() => {
+            finish(new Error("Microsoft 로그인 시간이 초과되었습니다."));
+        }, 10 * 60 * 1000);
+    }).finally(() => {
+        activeLogin = null;
+    });
 
-
-function microsoftLogin(){
-
-
-return new Promise(
-(resolve,reject)=>{
-
-
-const server =
-http.createServer(
-async(req,res)=>{
-
-
-if(req.url.startsWith("/callback")){
-
-
-const callbackURL =
-new URL(
-    req.url,
-    REDIRECT_URI
-);
-
-
-
-const code =
-callbackURL.searchParams.get(
-    "code"
-);
-
-
-
-console.log(
-"CALLBACK RECEIVED"
-);
-
-
-
-if(!code){
-
-reject(
-new Error(
-"Microsoft 인증 코드 없음"
-)
-);
-
-return;
-
+    return activeLogin;
 }
 
-
-
-
-res.writeHead(
-200,
-{
-"Content-Type":
-"text/html; charset=utf-8"
-}
-);
-
-
-
-res.end(`
-
-<html>
-
-<body>
-
-<h2>
-ZombieLauncher 로그인 완료
-</h2>
-
-<p>
-창을 닫아주세요.
-</p>
-
-</body>
-
-</html>
-
-`);
-
-
-
-
-server.close();
-
-
-
-
-
-try{
-
-
-console.log(
-"STEP 1 : MICROSOFT CODE OK"
-);
-
-
-
-const microsoftToken =
-await exchangeCode(
-code
-);
-
-
-
-console.log(
-"STEP 2 : MICROSOFT TOKEN OK"
-);
-
-
-
-
-
-const xbox =
-await xboxLogin(
-microsoftToken
-);
-
-
-
-console.log(
-"STEP 3 : XBOX TOKEN OK"
-);
-
-
-
-
-
-const xsts =
-await xstsLogin(
-xbox
-);
-
-
-
-console.log(
-"STEP 4 : XSTS TOKEN OK"
-);
-
-
-
-
-
-const minecraft =
-await minecraftLogin(
-xsts
-);
-
-
-
-console.log(
-"STEP 5 : MINECRAFT TOKEN OK"
-);
-
-
-
-
-
-const user =
-await profile(
-minecraft.access_token
-);
-
-
-
-console.log(
-"STEP 6 : PROFILE OK"
-);
-
-
-
-
-
-
-const account = {
-
-name:user.name,
-
-uuid:user.id,
-
-minecraftToken:minecraft.access_token,
-
-accessToken:minecraft.access_token,
-
-xuid:
-xbox.DisplayClaims.xui[0].xid,
-
-userType:"msa",
-
-clientId:CLIENT_ID,
-
-profile:{
- id:user.id,
- name:user.name
+async function exchangeCode(code) {
+    const body = new URLSearchParams({
+        client_id: CLIENT_ID,
+        code,
+        grant_type: "authorization_code",
+        redirect_uri: REDIRECT_URI
+    });
+    const response = await axios.post(
+        "https://login.live.com/oauth20_token.srf",
+        body.toString(),
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+    );
+    return response.data.access_token;
 }
 
-};
-
-
-
-
-
-console.log(
-"ACCOUNT CREATED",
-account
-);
-
-
-
-
-
-resolve(
-account
-);
-
-
-
-
-}
-catch(error){
-
-
-console.error(
-"LOGIN ERROR",
-error.response?.data ||
-error.message
-);
-
-
-
-reject(
-error
-);
-
-
-
-}
-
-
-
-}
-
-
-
-}
-
-
-);
-
-
-
-
-
-
-server.listen(
-4567,
-"127.0.0.1",
-()=>{
-
-
-console.log(
-"OAuth callback server : 4567"
-);
-
-
-}
-
-);
-
-
-
-
-
-
-
-const win =
-new BrowserWindow({
-
-width:500,
-
-height:700,
-
-resizable:false,
-
-
-webPreferences:{
-
-nodeIntegration:false,
-
-contextIsolation:true,
-
-sandbox:false
-
-}
-
-});
-
-
-
-
-
-const params =
-new URLSearchParams({
-
-
-client_id:
-CLIENT_ID,
-
-
-response_type:
-"code",
-
-
-redirect_uri:
-REDIRECT_URI,
-
-
-response_mode:
-"query",
-
-
-scope:
-"XboxLive.signin offline_access openid profile"
-
-
-});
-
-
-
-
-
-const loginURL =
-"https://login.live.com/oauth20_authorize.srf?"
-+
-params.toString();
-
-
-
-
-
-console.log(
-"LOGIN URL:",
-loginURL
-);
-
-
-
-
-
-win.loadURL(
-loginURL
-);
-
-
-
-
-
-}
-
-);
-
-}
-
-
-
-async function exchangeCode(code){
-
-
-
-const body =
-new URLSearchParams({
-
-
-client_id:
-CLIENT_ID,
-
-
-code:
-code,
-
-
-grant_type:
-"authorization_code",
-
-
-redirect_uri:
-REDIRECT_URI
-
-
-
-});
-
-
-
-
-
-const response =
-await axios.post(
-
-
-"https://login.live.com/oauth20_token.srf",
-
-
-body.toString(),
-
-
-
-{
-
-headers:{
-
-"Content-Type":
-"application/x-www-form-urlencoded"
-
-}
-
-}
-
-
-
-);
-
-
-
-
-return response.data.access_token;
-
-
-
-}
-
-
-
-
-
-
-module.exports = {
-
-microsoftLogin
-
-};
+module.exports = { microsoftLogin };
