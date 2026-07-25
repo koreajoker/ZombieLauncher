@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
-const { microsoftLogin } = require("./auth/microsoft");
+const { microsoftLogin, refreshMinecraftAccount } = require("./auth/microsoft");
 const { launchMinecraft } = require("./launcher/minecraft");
 const { saveAccount, getAccount, removeAccount } = require("./launcher/account");
 const { update } = require("./launcher/updater");
@@ -317,8 +317,13 @@ ipcMain.handle("get-account", () => getAccount());
 ipcMain.handle("logout", () => { removeAccount(); return true; });
 ipcMain.handle("minecraft-launch", async () => {
     try {
-        const account = getAccount();
+        let account = getAccount();
         if (!account) throw new Error("먼저 로그인하세요.");
+        const refreshWindow = 5 * 60 * 1000;
+        if (!account.expiresAt || Date.now() >= account.expiresAt - refreshWindow) {
+            account = await refreshMinecraftAccount(account);
+            saveAccount(account);
+        }
         const syncResult = await runAutomaticUpdate();
         if (!syncResult.success) throw new Error(`콘텐츠 자동 다운로드 실패: ${syncResult.message}`);
         await launchMinecraft(account);

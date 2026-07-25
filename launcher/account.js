@@ -98,6 +98,12 @@ function saveAccount(account){
         accessToken:
         account.accessToken || "",
 
+        refreshToken:
+        account.refreshToken || "",
+
+        expiresAt:
+        Number(account.expiresAt) || 0,
+
 
 
         minecraftToken:

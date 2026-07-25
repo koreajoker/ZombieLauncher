@@ -850,10 +850,11 @@ function buildLaunch(
         path.delimiter
     );
 
-    console.log(
-        "BUILD ACCOUNT",
-        JSON.stringify(account,null,2)
-    );
+    console.log("BUILD ACCOUNT", {
+        name: account.name,
+        uuid: account.uuid,
+        token: account.accessToken ? "OK" : "EMPTY"
+    });
 
 
     const configuredAssetIndex = versionData.assetIndex?.id || "17";
@@ -1065,10 +1066,11 @@ console.log(
 async function launchMinecraft(
     account="Player"
 ){
-console.log(
-    "ACCOUNT:",
-    JSON.stringify(account,null,2)
-);
+console.log("ACCOUNT", {
+    name: account.name,
+    uuid: account.uuid,
+    token: account.accessToken ? "OK" : "EMPTY"
+});
 
     await ensureGameInstalled(account);
 

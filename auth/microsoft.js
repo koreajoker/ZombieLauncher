@@ -60,21 +60,9 @@ function microsoftLogin() {
             callbackServer.close();
 
             try {
-                const microsoftToken = await exchangeCode(code);
-                const xbox = await xboxLogin(microsoftToken);
-                const xsts = await xstsLogin(xbox);
-                const minecraft = await minecraftLogin(xsts);
-                const user = await profile(minecraft.access_token);
-                finish(null, {
-                    name: user.name,
-                    uuid: user.id,
-                    minecraftToken: minecraft.access_token,
-                    accessToken: minecraft.access_token,
-                    xuid: xbox.DisplayClaims.xui[0].xid,
-                    userType: "msa",
-                    clientId: CLIENT_ID,
-                    profile: { id: user.id, name: user.name }
-                });
+                const microsoftTokens = await exchangeCode(code);
+                const account = await createMinecraftAccount(microsoftTokens);
+                finish(null, account);
             } catch (error) {
                 console.error("LOGIN ERROR", error.response?.data || error.message);
                 finish(new Error(error.response?.data?.errorMessage || error.message || "Microsoft 로그인 실패"));
@@ -136,7 +124,60 @@ async function exchangeCode(code) {
         body.toString(),
         { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
     );
-    return response.data.access_token;
+    return response.data;
 }
 
-module.exports = { microsoftLogin };
+async function refreshMicrosoftToken(refreshToken) {
+    if (!refreshToken) {
+        throw new Error("로그인 세션이 만료되었습니다. Microsoft 계정으로 다시 로그인해 주세요.");
+    }
+
+    const body = new URLSearchParams({
+        client_id: CLIENT_ID,
+        refresh_token: refreshToken,
+        grant_type: "refresh_token",
+        redirect_uri: REDIRECT_URI,
+        scope: "XboxLive.signin offline_access openid profile"
+    });
+    const response = await axios.post(
+        "https://login.live.com/oauth20_token.srf",
+        body.toString(),
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+    );
+    return response.data;
+}
+
+async function createMinecraftAccount(microsoftTokens) {
+    const xbox = await xboxLogin(microsoftTokens.access_token);
+    const xsts = await xstsLogin(xbox);
+    const minecraft = await minecraftLogin(xsts);
+    const user = await profile(minecraft.access_token);
+
+    return {
+        name: user.name,
+        uuid: user.id,
+        minecraftToken: minecraft.access_token,
+        accessToken: minecraft.access_token,
+        refreshToken: microsoftTokens.refresh_token,
+        expiresAt: Date.now() + (Number(minecraft.expires_in) || 86400) * 1000,
+        xuid: xsts.DisplayClaims?.xui?.[0]?.xid || xbox.DisplayClaims?.xui?.[0]?.xid || "",
+        userType: "msa",
+        clientId: CLIENT_ID,
+        profile: { id: user.id, name: user.name }
+    };
+}
+
+async function refreshMinecraftAccount(account) {
+    try {
+        const microsoftTokens = await refreshMicrosoftToken(account?.refreshToken);
+        if (!microsoftTokens.refresh_token) {
+            microsoftTokens.refresh_token = account.refreshToken;
+        }
+        return await createMinecraftAccount(microsoftTokens);
+    } catch (error) {
+        console.error("TOKEN REFRESH ERROR", error.response?.data?.error || error.message);
+        throw new Error("로그인 세션이 만료되었습니다. 로그아웃 후 Microsoft 계정으로 다시 로그인해 주세요.");
+    }
+}
+
+module.exports = { microsoftLogin, refreshMinecraftAccount };
