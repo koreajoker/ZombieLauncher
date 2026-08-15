@@ -26,6 +26,8 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || "launcher";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const STORAGE_CHUNK_BYTES = Number(process.env.STORAGE_CHUNK_BYTES) || 25 * 1024 * 1024;
+const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || "https://pub-f98c037de28142368ae5d8959bf79267.r2.dev").replace(/\/$/, "");
+const R2_MANIFEST_URL = process.env.R2_MANIFEST_URL || `${R2_PUBLIC_URL}/manifest.json`;
 const MANIFEST_SUFFIX = ".zmanifest";
 const TYPES = {
     mod: { prefix: "mod", extensions: [".jar"] },
@@ -103,6 +105,38 @@ function pathFromId(id) {
     const objectPath = Buffer.from(id, "base64url").toString("utf8");
     if (!/^(mod|shader|resourcepack)\/[^/]+$/.test(objectPath)) throw new Error("잘못된 파일 ID입니다.");
     return objectPath;
+}
+
+async function getR2Updates() {
+    const response = await fetch(R2_MANIFEST_URL, { signal: AbortSignal.timeout(30000) });
+    if (!response.ok) throw new Error(`R2 manifest 오류 (${response.status})`);
+
+    const manifest = await response.json();
+    const groups = [
+        ["mods", "mod"],
+        ["resourcepacks", "resourcepack"],
+        ["shaderpacks", "shader"]
+    ];
+    const files = [];
+
+    for (const [key, type] of groups) {
+        for (const item of Array.isArray(manifest[key]) ? manifest[key] : []) {
+            const name = path.basename(String(item.file || ""));
+            const relativeUrl = String(item.url || "").replace(/^\/+/, "");
+            if (!name || !relativeUrl || relativeUrl.includes("..")) continue;
+            files.push({
+                name,
+                type,
+                url: `${R2_PUBLIC_URL}/${relativeUrl.split("/").map(encodeURIComponent).join("/")}`,
+                size: Number(item.size) || 0,
+                sha256: item.sha256 || null,
+                updatedAt: manifest.updatedAt || null,
+                signature: `${manifest.version || "1"}:${relativeUrl}:${item.sha256 || item.sha1 || ""}`
+            });
+        }
+    }
+
+    return { success: true, version: manifest.version || "1", files };
 }
 
 async function ensureBucket() {
@@ -233,6 +267,7 @@ app.get("/files", async (_req, res, next) => {
 });
 app.get("/updates", async (req, res, next) => {
     try {
+        if (R2_MANIFEST_URL) return res.json(await getR2Updates());
         const groups = await Promise.all(Object.keys(TYPES).map(listType));
         const baseUrl = process.env.PUBLIC_API_URL || `${req.protocol}://${req.get("host")}`;
         const files = groups.flat().map(file => ({
