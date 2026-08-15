@@ -305,8 +305,14 @@ app.get("/config", async (_req, res, next) => {
 });
 app.get("/files", async (_req, res, next) => {
     try {
-        const groups = await Promise.all(Object.keys(TYPES).map(listType));
-        res.json({ success: true, files: groups.flat() });
+        const result = await getR2Updates();
+        res.json({
+            success: true,
+            files: result.files.map(file => ({
+                ...file,
+                id: fileId(new URL(file.url).pathname.replace(/^\/+/, ""))
+            }))
+        });
     } catch (error) { next(error); }
 });
 app.get("/updates", async (req, res, next) => {
