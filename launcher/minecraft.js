@@ -1244,7 +1244,7 @@ console.log(
 
 
 
-fs.ensureDirSync(launcherPaths.logs);
+fs.mkdirSync(launcherPaths.logs, { recursive: true });
 const processLog = path.join(launcherPaths.logs, "minecraft-process.log");
 const processLogFd = fs.openSync(processLog, "a");
 
