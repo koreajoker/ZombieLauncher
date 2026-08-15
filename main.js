@@ -12,7 +12,6 @@ const API_URL = (
     process.env.ZOMBIE_API_URL ||
     (app.isPackaged ? "https://zombielauncher-api.onrender.com" : "http://127.0.0.1:3000")
 ).replace(/\/$/, "");
-const ADMIN_PASSWORD = process.env.ZOMBIE_ADMIN_PASSWORD || "Frogfried1026";
 const CONFIG_DIR = path.join(app.getPath("userData"), "config");
 const SETTINGS_CONFIG = path.join(CONFIG_DIR, "settings.json");
 const ALLOWED_UPLOAD_TYPES = new Set(["mod", "shader", "resourcepack"]);
@@ -155,11 +154,21 @@ ipcMain.handle("open-external", async (_event, url) => {
     return true;
 });
 
-ipcMain.handle("admin-login", (_event, password) => {
-    const valid = typeof password === "string" && password === ADMIN_PASSWORD;
-    adminCredential = valid ? password : null;
-    adminAuthenticated = valid;
-    return valid;
+ipcMain.handle("admin-login", async (_event, password) => {
+    if(typeof password !== "string" || !password) return false;
+    try {
+        await apiRequest("/admin/verify", {
+            method: "POST",
+            headers: { "x-admin-password": password }
+        });
+        adminCredential = password;
+        adminAuthenticated = true;
+        return true;
+    } catch {
+        adminCredential = null;
+        adminAuthenticated = false;
+        return false;
+    }
 });
 ipcMain.on("open-admin", () => createAdminWindow());
 ipcMain.handle("admin-close", event => {

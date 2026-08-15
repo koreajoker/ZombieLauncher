@@ -6,7 +6,7 @@ const { Readable } = require("stream");
 const fs = require("fs");
 const path = require("path");
 const AdmZip = require("adm-zip");
-const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+const { S3Client, PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 
 const localEnv = path.join(__dirname, ".env");
 if (fs.existsSync(localEnv)) {
@@ -38,6 +38,11 @@ const TYPES = {
     mod: { prefix: "mod", extensions: [".jar"] },
     shader: { prefix: "shader", extensions: [".zip"] },
     resourcepack: { prefix: "resourcepack", extensions: [".zip"] }
+};
+const R2_TYPES = {
+    mod: { folder: "mods", manifestKey: "mods" },
+    shader: { folder: "shaderpacks", manifestKey: "shaderpacks" },
+    resourcepack: { folder: "resourcepacks", manifestKey: "resourcepacks" }
 };
 let bucketReadyPromise = null;
 const r2Client = R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY
@@ -119,6 +124,12 @@ function pathFromId(id) {
     return objectPath;
 }
 
+function r2PathFromId(id) {
+    const objectPath = decodeURIComponent(Buffer.from(id, "base64url").toString("utf8"));
+    if (!/^(mods|shaderpacks|resourcepacks)\/[^/]+$/.test(objectPath)) throw new Error("잘못된 R2 파일 ID입니다.");
+    return objectPath;
+}
+
 async function getR2Updates() {
     const response = await fetch(R2_MANIFEST_URL, { signal: AbortSignal.timeout(30000) });
     if (!response.ok) throw new Error(`R2 manifest 오류 (${response.status})`);
@@ -149,6 +160,26 @@ async function getR2Updates() {
     }
 
     return { success: true, version: manifest.version || "1", files };
+}
+
+async function readR2Manifest() {
+    const response = await fetch(`${R2_PUBLIC_URL}/manifest.json?ts=${Date.now()}`, {
+        signal: AbortSignal.timeout(30000),
+        headers: { "cache-control": "no-cache" }
+    });
+    if (!response.ok) throw new Error(`R2 manifest 오류 (${response.status})`);
+    return response.json();
+}
+
+async function writeR2Manifest(manifest) {
+    if (!r2Client) throw Object.assign(new Error("R2 관리자 API 자격 증명이 설정되지 않았습니다."), { status: 503 });
+    await r2Client.send(new PutObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: "manifest.json",
+        Body: JSON.stringify(manifest, null, 2),
+        ContentType: "application/json; charset=utf-8",
+        CacheControl: "no-cache"
+    }));
 }
 
 async function ensureBucket() {
@@ -343,59 +374,24 @@ for (const [type, rule] of Object.entries(TYPES)) {
                 return res.status(400).json({ success: false, message: `허용 확장자: ${rule.extensions.join(", ")}` });
             }
             const detectedType = detectContentType(req.file.buffer, type);
-            const detectedRule = TYPES[detectedType];
-            const objectPath = `${detectedRule.prefix}/${name}`;
-            const manifestPath = manifestPathFor(detectedRule.prefix, name);
-            const legacyManifestPath = `${objectPath}${MANIFEST_SUFFIX}`;
-            const needsManifest = req.file.size > STORAGE_CHUNK_BYTES || !safeStorageName(name);
-
-            if (!needsManifest) {
-                await removeManifestAndChunks(manifestPath, true);
-                await removeManifestAndChunks(legacyManifestPath, true);
-                await storageRequest(`/object/${encodeURIComponent(SUPABASE_BUCKET)}/${encodePath(objectPath)}`, {
-                    method: "POST",
-                    headers: { "content-type": req.file.mimetype || "application/octet-stream", "x-upsert": "true" },
-                    body: req.file.buffer
-                });
-                return res.json({ success: true, file: { id: fileId(objectPath), name, type: detectedType, chunked: false } });
-            }
-
-            const uploadId = crypto.randomUUID();
-            const chunks = [];
-            try {
-                for (let offset = 0, index = 0; offset < req.file.size; offset += STORAGE_CHUNK_BYTES, index += 1) {
-                    const chunkPath = `_chunks/${uploadId}/${String(index).padStart(5, "0")}`;
-                    await storageRequest(`/object/${encodeURIComponent(SUPABASE_BUCKET)}/${encodePath(chunkPath)}`, {
-                        method: "POST",
-                        headers: { "content-type": "application/octet-stream", "x-upsert": "false" },
-                        body: req.file.buffer.subarray(offset, Math.min(offset + STORAGE_CHUNK_BYTES, req.file.size))
-                    });
-                    chunks.push(chunkPath);
-                }
-
-                await removeManifestAndChunks(manifestPath, true);
-                if (safeStorageName(name)) {
-                    await removeManifestAndChunks(legacyManifestPath, true);
-                    await removeObject(objectPath, true);
-                }
-                const manifest = {
-                    version: 1,
-                    name,
-                    size: req.file.size,
-                    contentType: req.file.mimetype || "application/octet-stream",
-                    sha256: crypto.createHash("sha256").update(req.file.buffer).digest("hex"),
-                    chunks
-                };
-                await storageRequest(`/object/${encodeURIComponent(SUPABASE_BUCKET)}/${encodePath(manifestPath)}`, {
-                    method: "POST",
-                    headers: { "content-type": "application/json", "x-upsert": "true" },
-                    body: JSON.stringify(manifest)
-                });
-                return res.json({ success: true, file: { id: fileId(manifestPath), name, type: detectedType, chunked: true } });
-            } catch (error) {
-                for (const chunkPath of chunks) await removeObject(chunkPath, true).catch(() => {});
-                throw error;
-            }
+            if (!r2Client) throw Object.assign(new Error("R2 관리자 API 자격 증명이 설정되지 않았습니다."), { status: 503 });
+            const r2Rule = R2_TYPES[detectedType];
+            const objectPath = `${r2Rule.folder}/${name}`;
+            const sha256 = crypto.createHash("sha256").update(req.file.buffer).digest("hex");
+            await r2Client.send(new PutObjectCommand({
+                Bucket: R2_BUCKET,
+                Key: objectPath,
+                Body: req.file.buffer,
+                ContentType: req.file.mimetype || "application/octet-stream"
+            }));
+            const manifest = await readR2Manifest();
+            const entries = Array.isArray(manifest[r2Rule.manifestKey]) ? manifest[r2Rule.manifestKey] : [];
+            manifest[r2Rule.manifestKey] = entries.filter(item => item.file !== name && item.url !== objectPath);
+            manifest[r2Rule.manifestKey].push({ file: name, url: objectPath, size: req.file.size, sha256 });
+            manifest.version = String(Date.now());
+            manifest.updatedAt = new Date().toISOString();
+            await writeR2Manifest(manifest);
+            return res.json({ success: true, file: { id: fileId(objectPath), name, type: detectedType } });
         } catch (error) { next(error); }
     });
 }
@@ -427,9 +423,17 @@ app.get("/file/:id", async (req, res, next) => {
 
 app.delete("/file/:id", requireAdmin, async (req, res, next) => {
     try {
-        const objectPath = pathFromId(req.params.id);
-        if (objectPath.endsWith(MANIFEST_SUFFIX)) await removeManifestAndChunks(objectPath, false);
-        else await removeObject(objectPath);
+        if (!r2Client) throw Object.assign(new Error("R2 관리자 API 자격 증명이 설정되지 않았습니다."), { status: 503 });
+        const objectPath = r2PathFromId(req.params.id);
+        await r2Client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: objectPath }));
+        const manifest = await readR2Manifest();
+        for (const rule of Object.values(R2_TYPES)) {
+            const entries = Array.isArray(manifest[rule.manifestKey]) ? manifest[rule.manifestKey] : [];
+            manifest[rule.manifestKey] = entries.filter(item => item.url !== objectPath);
+        }
+        manifest.version = String(Date.now());
+        manifest.updatedAt = new Date().toISOString();
+        await writeR2Manifest(manifest);
         res.json({ success: true });
     } catch (error) { next(error); }
 });

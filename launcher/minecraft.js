@@ -12,6 +12,7 @@ const NEOFORGE_ID = `neoforge-${NEOFORGE_VERSION}`;
 const NEOFORGE_INSTALLER_URL = `https://maven.neoforged.net/releases/net/neoforged/neoforge/${NEOFORGE_VERSION}/neoforge-${NEOFORGE_VERSION}-installer.jar`;
 const JAVA_RUNTIME_URL = "https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse";
 let activeJava = null;
+let gameInstallPromise = null;
 
 // ==================================================
 // Launcher Settings
@@ -142,10 +143,31 @@ function runProcess(command, args, options = {}){
 async function downloadFile(url, destination){
     const response = await fetch(url, { signal: AbortSignal.timeout(120000) });
     if(!response.ok) throw new Error(`다운로드 실패 (${response.status}): ${url}`);
-    const temporary = destination + ".download";
+    const temporary = `${destination}.${process.pid}.${Date.now()}.download`;
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.writeFileSync(temporary, Buffer.from(await response.arrayBuffer()));
-    fs.renameSync(temporary, destination);
+
+    for(let attempt = 0; attempt < 10; attempt += 1){
+        try {
+            if(fs.existsSync(destination) && fs.statSync(destination).size > 0){
+                fs.rmSync(temporary, { force: true });
+                return;
+            }
+            fs.renameSync(temporary, destination);
+            return;
+        } catch(error) {
+            if(!["EPERM", "EACCES", "EEXIST"].includes(error.code) || attempt === 9) break;
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
+    }
+
+    try {
+        if(!fs.existsSync(destination)) fs.copyFileSync(temporary, destination, fs.constants.COPYFILE_EXCL);
+        fs.rmSync(temporary, { force: true });
+    } catch(error) {
+        fs.rmSync(temporary, { force: true });
+        throw error;
+    }
 }
 
 async function ensureJava21(){
@@ -224,11 +246,20 @@ async function installNeoForge(){
     if(!fs.existsSync(neoJson)) throw new Error("NeoForge 자동 설치에 실패했습니다. Java 21이 필요합니다.");
 }
 
-async function ensureGameInstalled(account){
+async function performGameInstallation(account){
     fs.mkdirSync(GAME_DIR, { recursive: true });
     await ensureJava21();
     await installVanilla(account);
     await installNeoForge();
+}
+
+async function ensureGameInstalled(account){
+    if(!gameInstallPromise){
+        gameInstallPromise = performGameInstallation(account).finally(() => {
+            gameInstallPromise = null;
+        });
+    }
+    return gameInstallPromise;
 }
 
 

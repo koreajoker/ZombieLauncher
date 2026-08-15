@@ -1,6 +1,6 @@
 {
   "name": "zombielauncher",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "ZombieLauncher Minecraft NeoForge Launcher",
   "main": "main.js",
   "scripts": {
