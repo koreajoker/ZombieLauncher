@@ -693,7 +693,9 @@ function resolveArguments(args, vars){
 
                                 has_custom_resolution:true,
 
-                                is_quick_play_multiplayer:false,
+                                has_quick_plays_support:false,
+
+                                is_quick_play_multiplayer:Boolean(vars.quickPlayMultiplayer),
 
                                 is_quick_play_singleplayer:false,
 
@@ -834,7 +836,8 @@ function cleanJvmArgs(args){
 function buildLaunch(
     version,
     versionData,
-    account
+    account,
+    options={}
 ){
 
 
@@ -965,6 +968,9 @@ account.xuid ||
  ""
 ),
 
+quickPlayMultiplayer:
+options.serverAddress || "",
+
 
 
     };
@@ -1064,7 +1070,8 @@ console.log(
 
 
 async function launchMinecraft(
-    account="Player"
+    account="Player",
+    options={}
 ){
 console.log("ACCOUNT", {
     name: account.name,
@@ -1100,7 +1107,9 @@ buildLaunch(
 
     versionData,
 
-    account
+    account,
+
+    options
 
 );
 
@@ -1235,8 +1244,13 @@ console.log(
 
 
 
-const child =
-spawn(
+fs.ensureDirSync(launcherPaths.logs);
+const processLog = path.join(launcherPaths.logs, "minecraft-process.log");
+const processLogFd = fs.openSync(processLog, "a");
+
+let child;
+try {
+child = spawn(
 
     java,
 
@@ -1252,63 +1266,23 @@ spawn(
         GAME_DIR,
 
 
-        windowsHide:false,
+        windowsHide:true,
+
+        detached:true,
 
 
         stdio:[
             "ignore",
-            "pipe",
-            "pipe"
+            processLogFd,
+            processLogFd
         ]
 
     }
 
 );
-
-
-let startupOutput = "";
-
-
-
-
-
-    child.stdout.on(
-        "data",
-        data=>{
-
-            startupOutput += data.toString();
-
-
-            console.log(
-                "MC:",
-                data.toString()
-            );
-
-
-        }
-
-    );
-
-
-
-
-
-    child.stderr.on(
-        "data",
-        data=>{
-
-            startupOutput += data.toString();
-
-
-            console.log(
-                "MC ERROR:",
-                data.toString()
-            );
-
-
-        }
-
-    );
+} finally {
+    fs.closeSync(processLogFd);
+}
 
 
 
@@ -1336,6 +1310,7 @@ let startupOutput = "";
 
         const timer = setTimeout(()=>{
             startupComplete = true;
+            child.unref();
             writeLog("MINECRAFT", "Minecraft process is running.");
             resolve();
         }, 10000);
@@ -1350,7 +1325,11 @@ let startupOutput = "";
         child.once("close", code=>{
             if(startupComplete) return;
             clearTimeout(timer);
-            const detail = startupOutput.trim().slice(-3000);
+            let detail = "";
+            try {
+                const output = fs.readFileSync(processLog, "utf8");
+                detail = output.trim().slice(-3000);
+            } catch {}
             const message = `Minecraft가 실행 직후 종료되었습니다 (코드 ${code}).${detail ? `\n\n${detail}` : ""}`;
             writeLog("MINECRAFT ERROR", message);
             reject(new Error(message));

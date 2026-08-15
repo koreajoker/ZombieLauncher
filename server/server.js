@@ -6,6 +6,7 @@ const { Readable } = require("stream");
 const fs = require("fs");
 const path = require("path");
 const AdmZip = require("adm-zip");
+const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 
 const localEnv = path.join(__dirname, ".env");
 if (fs.existsSync(localEnv)) {
@@ -28,6 +29,10 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const STORAGE_CHUNK_BYTES = Number(process.env.STORAGE_CHUNK_BYTES) || 25 * 1024 * 1024;
 const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || "https://pub-f98c037de28142368ae5d8959bf79267.r2.dev").replace(/\/$/, "");
 const R2_MANIFEST_URL = process.env.R2_MANIFEST_URL || `${R2_PUBLIC_URL}/manifest.json`;
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || "cfb80e890e1b8bb91cdba3c287138b67";
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "";
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "";
+const R2_BUCKET = process.env.R2_BUCKET || "zombielauncher-download";
 const MANIFEST_SUFFIX = ".zmanifest";
 const TYPES = {
     mod: { prefix: "mod", extensions: [".jar"] },
@@ -35,6 +40,13 @@ const TYPES = {
     resourcepack: { prefix: "resourcepack", extensions: [".zip"] }
 };
 let bucketReadyPromise = null;
+const r2Client = R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY
+    ? new S3Client({
+        region: "auto",
+        endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+        credentials: { accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY }
+    })
+    : null;
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
@@ -245,13 +257,45 @@ async function listType(type) {
 }
 
 async function getConfig() {
-    try {
-        const response = await storageRequest(`/object/${encodeURIComponent(SUPABASE_BUCKET)}/config/launcher.json`);
-        return response.json();
-    } catch (error) {
-        if (error.status === 400 || error.status === 404) return { discord: "", news: "", notice: "" };
+    const response = await fetch(`${R2_PUBLIC_URL}/config/launcher.json`, {
+        signal: AbortSignal.timeout(30000),
+        headers: { "cache-control": "no-cache" }
+    });
+    if (response.status === 404) return { discord: "", serverAddress: "", news: "", notice: "" };
+    if (!response.ok) throw new Error(`R2 설정 읽기 오류 (${response.status})`);
+    return response.json();
+}
+
+function cleanServerAddress(value) {
+    const address = typeof value === "string" ? value.trim() : "";
+    if (!address) return "";
+    if (address.length > 255 || /[\s/\\?#]/.test(address)) {
+        const error = new Error("서버 주소 형식이 올바르지 않습니다.");
+        error.status = 400;
         throw error;
     }
+    const portMatch = address.match(/:(\d+)$/);
+    if (portMatch && Number(portMatch[1]) > 65535) {
+        const error = new Error("서버 포트는 1~65535 범위여야 합니다.");
+        error.status = 400;
+        throw error;
+    }
+    return address;
+}
+
+async function saveConfig(config) {
+    if (!r2Client) {
+        const error = new Error("R2 관리자 API 자격 증명이 설정되지 않았습니다.");
+        error.status = 503;
+        throw error;
+    }
+    await r2Client.send(new PutObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: "config/launcher.json",
+        Body: JSON.stringify(config, null, 2),
+        ContentType: "application/json; charset=utf-8",
+        CacheControl: "no-cache"
+    }));
 }
 
 app.get("/health", (_req, res) => res.json({ success: true }));
@@ -388,14 +432,11 @@ app.post("/admin/save", requireAdmin, async (req, res, next) => {
     try {
         const config = {
             discord: typeof req.body.discord === "string" ? req.body.discord : "",
+            serverAddress: cleanServerAddress(req.body.serverAddress),
             news: typeof req.body.news === "string" ? req.body.news : "",
             notice: typeof req.body.notice === "string" ? req.body.notice : ""
         };
-        await storageRequest(`/object/${encodeURIComponent(SUPABASE_BUCKET)}/config/launcher.json`, {
-            method: "POST",
-            headers: { "content-type": "application/json; charset=utf-8", "x-upsert": "true" },
-            body: JSON.stringify(config)
-        });
+        await saveConfig(config);
         res.json({ success: true, config });
     } catch (error) { next(error); }
 });

@@ -326,7 +326,11 @@ ipcMain.handle("minecraft-launch", async () => {
         }
         const syncResult = await runAutomaticUpdate();
         if (!syncResult.success) throw new Error(`콘텐츠 자동 다운로드 실패: ${syncResult.message}`);
-        await launchMinecraft(account);
+        const launcherConfig = await apiRequest("/config").catch(() => ({}));
+        const serverAddress = typeof launcherConfig.serverAddress === "string"
+            ? launcherConfig.serverAddress.trim()
+            : "";
+        await launchMinecraft(account, { serverAddress });
         return { success: true };
     } catch (error) {
         return { success: false, message: error.message };

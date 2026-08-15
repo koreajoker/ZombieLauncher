@@ -1,5 +1,6 @@
 window.addEventListener("DOMContentLoaded", async () => {
     const discord = document.getElementById("discord");
+    const serverAddress = document.getElementById("serverAddress");
     const news = document.getElementById("news");
     const notice = document.getElementById("notice");
     const saveButton = document.getElementById("save-btn");
@@ -60,7 +61,12 @@ window.addEventListener("DOMContentLoaded", async () => {
     closeButton.onclick = () => window.admin.close();
     saveButton.onclick = async () => {
         try {
-            await window.admin.saveConfig({ discord: discord.value, news: news.value, notice: notice.value });
+            await window.admin.saveConfig({
+                discord: discord.value,
+                serverAddress: serverAddress.value,
+                news: news.value,
+                notice: notice.value
+            });
             alert("저장되었습니다.");
         } catch (error) {
             alert(message(error));
@@ -76,6 +82,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     try {
         const config = await window.launcher.loadLauncherConfig();
         discord.value = config.discord || "";
+        serverAddress.value = config.serverAddress || "";
         news.value = config.news || "";
         notice.value = config.notice || "";
         await loadFiles();
