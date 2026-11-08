@@ -1,6 +1,6 @@
 {
   "name": "frog-launcher",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "FROG Minecraft NeoForge Launcher",
   "main": "main.js",
   "scripts": {

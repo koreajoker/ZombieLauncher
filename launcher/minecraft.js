@@ -336,18 +336,14 @@ function findVersion(){
 
 
 
-    // NeoForge 우선
+    // 요청한 NeoForge 버전을 항상 우선 실행한다.
+    // 기존 런처가 설치한 이전 버전 폴더가 남아 있어도 최신 버전을 선택해야 한다.
+    if(versions.includes(NEOFORGE_ID))
+        return NEOFORGE_ID;
 
-    const neo =
-    versions.find(v=>
-
-        v.startsWith(
-            "neoforge-"
-        )
-
-    );
-
-
+    const neo = versions
+        .filter(v => v.startsWith("neoforge-"))
+        .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))[0];
 
     if(neo)
         return neo;
