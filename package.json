@@ -1,7 +1,7 @@
 {
-  "name": "zombielauncher",
-  "version": "1.0.13",
-  "description": "ZombieLauncher Minecraft NeoForge Launcher",
+  "name": "frog-launcher",
+  "version": "1.0.14",
+  "description": "FROG Minecraft NeoForge Launcher",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -10,8 +10,8 @@
   },
   "build": {
     "appId": "com.zombielauncher.launcher",
-    "productName": "ZombieLauncher",
-    "artifactName": "ZombieLauncher-${version}.${ext}",
+    "productName": "FROG",
+    "artifactName": "FROG-${version}.${ext}",
     "asar": true,
     "compression": "maximum",
     "directories": {
@@ -47,7 +47,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "deleteAppDataOnUninstall": true,
-      "shortcutName": "ZombieLauncher"
+      "shortcutName": "FROG"
     }
   },
   "dependencies": {

@@ -235,15 +235,19 @@ ipcMain.handle("uninstall-launcher", async event => {
         buttons: ["취소", "완전히 삭제"],
         defaultId: 0,
         cancelId: 0,
-        title: "ZombieLauncher 설치 삭제",
-        message: "ZombieLauncher를 완전히 삭제할까요?",
+        title: "FROG 설치 삭제",
+        message: "FROG를 완전히 삭제할까요?",
         detail: "앱과 로그인 정보, 설정, Minecraft, NeoForge, 모드, 리소스팩, 셰이더 및 캐시가 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다."
     });
     if (confirmation.response !== 1) return { success: false, cancelled: true };
 
     const installDirectory = path.dirname(app.getPath("exe"));
-    const uninstaller = path.join(installDirectory, "Uninstall ZombieLauncher.exe");
-    if (!fs.existsSync(uninstaller)) {
+    const uninstallers = [
+        path.join(installDirectory, "Uninstall FROG.exe"),
+        path.join(installDirectory, "Uninstall ZombieLauncher.exe")
+    ];
+    const uninstaller = uninstallers.find(fs.existsSync);
+    if (!uninstaller) {
         return { success: false, message: "제거 프로그램을 찾을 수 없습니다. Windows 설정의 설치된 앱에서 제거해 주세요." };
     }
 
