@@ -7,7 +7,7 @@ const launcherPaths = require("./paths");
 const { writeLog } = require("./logger");
 
 const MINECRAFT_VERSION = "1.21.1";
-const NEOFORGE_VERSION = "21.1.232";
+const NEOFORGE_VERSION = "21.1.265";
 const NEOFORGE_ID = `neoforge-${NEOFORGE_VERSION}`;
 const NEOFORGE_INSTALLER_URL = `https://maven.neoforged.net/releases/net/neoforged/neoforge/${NEOFORGE_VERSION}/neoforge-${NEOFORGE_VERSION}-installer.jar`;
 const JAVA_RUNTIME_URL = "https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse";
