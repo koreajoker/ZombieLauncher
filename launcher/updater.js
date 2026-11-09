@@ -26,20 +26,57 @@ async function sha256(file) {
     return hash.digest("hex");
 }
 
-async function downloadFile(url, destination) {
-    const response = await fetch(url, { signal: AbortSignal.timeout(120000) });
-    if (!response.ok || !response.body) throw new Error(`Download ${response.status}: ${url}`);
+// 파일 하나당 전체 시간 제한 대신 "데이터가 일정 시간 안 오면 실패"로 판단한다 (느린 회선에서도 큰 파일을 받을 수 있게)
+const IDLE_TIMEOUT_MS = 60000;
+const MAX_ATTEMPTS = 4;
 
-    await fs.ensureDir(path.dirname(destination));
+async function downloadOnce(url, destination, expectedSize) {
+    const controller = new AbortController();
+    let timer;
+    const arm = () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => controller.abort(new Error(`${IDLE_TIMEOUT_MS / 1000}초 동안 데이터가 오지 않았습니다`)), IDLE_TIMEOUT_MS);
+    };
     const temporary = `${destination}.download`;
-
+    arm();
     try {
-        await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(temporary));
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok || !response.body) throw new Error(`Download ${response.status}: ${url}`);
+
+        await fs.ensureDir(path.dirname(destination));
+        const source = Readable.fromWeb(response.body);
+        source.on("data", arm);
+        await pipeline(source, fs.createWriteStream(temporary), { signal: controller.signal });
+
+        if (expectedSize) {
+            const stat = await fs.stat(temporary);
+            if (stat.size !== Number(expectedSize)) {
+                throw new Error(`파일 크기가 맞지 않습니다 (${stat.size} / ${expectedSize})`);
+            }
+        }
         await fs.move(temporary, destination, { overwrite: true });
     } catch (error) {
-        await fs.remove(temporary);
+        await fs.remove(temporary).catch(() => {});
         throw error;
+    } finally {
+        clearTimeout(timer);
     }
+}
+
+async function downloadFile(url, destination, expectedSize) {
+    let lastError;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+        try {
+            await downloadOnce(url, destination, expectedSize);
+            return;
+        } catch (error) {
+            lastError = error;
+            const reason = error?.cause?.message || error?.message || String(error);
+            writeLog("UPDATE ERROR", `${path.basename(destination)} 다운로드 실패 (${attempt}/${MAX_ATTEMPTS}): ${reason}`);
+            if (attempt < MAX_ATTEMPTS) await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+        }
+    }
+    throw lastError;
 }
 
 function destinationFor(file) {
@@ -115,6 +152,7 @@ async function update(onProgress = () => {}, apiUrl = API_URL) {
     const previous = await readState();
     const next = { version: data.version || null, files: {} };
     const remoteKeys = new Set(files.map(stateKey));
+    const failed = [];
 
     for (let index = 0; index < files.length; index += 1) {
         const file = files[index];
@@ -137,10 +175,19 @@ async function update(onProgress = () => {}, apiUrl = API_URL) {
         }
 
         if (!current) {
-            await downloadFile(file.url, target);
-            writeLog("UPDATE", `${file.name} downloaded`);
+            try {
+                await downloadFile(file.url, target, file.size);
+                writeLog("UPDATE", `${file.name} downloaded`);
+            } catch (error) {
+                // 한 파일이 실패해도 나머지는 계속 받는다. 실패한 파일은 다음 업데이트 때 다시 시도한다.
+                failed.push(path.basename(file.name));
+                onProgress((index + 1) / files.length, file.name);
+                continue;
+            }
         }
         next.files[key] = { signature, size: Number(file.size) || 0 };
+        // 받은 파일은 바로 기록해 둔다 (중간에 끊겨도 처음부터 다시 받지 않도록)
+        await writeState({ version: previous.version || null, files: { ...(previous.files || {}), ...next.files } });
         onProgress((index + 1) / files.length, file.name);
     }
 
@@ -157,6 +204,10 @@ async function update(onProgress = () => {}, apiUrl = API_URL) {
     await enableResourcePacks(files, previous);
     await writeState(next);
     if (files.length === 0) onProgress(1, "");
+    if (failed.length) {
+        // 실패한 파일은 상태에서 빼서 다음에 다시 받게 한다
+        throw new Error(`${failed.length}개 파일을 받지 못했습니다: ${failed.join(", ")}`);
+    }
 
     return data.version || null;
 }
