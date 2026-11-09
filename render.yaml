@@ -27,6 +27,6 @@ services:
       - key: STORAGE_CHUNK_BYTES
         value: "26214400"
       - key: R2_PUBLIC_URL
-        value: https://pub-f98c037de28142368ae5d8959bf79267.r2.dev
+        value: https://shy-brook-e3e6frog-cdn.leejingjing05.workers.dev
       - key: R2_MANIFEST_URL
-        value: https://pub-f98c037de28142368ae5d8959bf79267.r2.dev/manifest.json
+        value: https://shy-brook-e3e6frog-cdn.leejingjing05.workers.dev/manifest.json
