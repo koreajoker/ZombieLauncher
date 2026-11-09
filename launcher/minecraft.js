@@ -562,6 +562,25 @@ function getLibraryPath(lib){
 // Libraries
 // ==================================================
 
+// 현재 PC(운영체제, CPU)에 맞지 않는 LWJGL 네이티브 jar를 제외한다.
+// x86, arm64 네이티브가 같이 클래스패스에 들어가면 LWJGL이 잘못된 플랫폼을 골라
+// "Failed to locate library: lwjgl_opengl.dll"로 게임이 시작 직후 종료된다.
+function nativeJarMatchesPlatform(jar){
+    const match = /-natives-(windows|linux|macos|osx)(?:-(arm64|x86))?\.jar$/i.exec(path.basename(jar));
+    if(!match) return true;
+
+    const wantedOs = process.platform === "win32" ? "windows"
+        : process.platform === "darwin" ? "macos"
+        : "linux";
+    const jarOs = match[1].toLowerCase() === "osx" ? "macos" : match[1].toLowerCase();
+    if(jarOs !== wantedOs) return false;
+
+    const wantedArch = process.arch === "arm64" ? "arm64"
+        : process.arch === "ia32" ? "x86"
+        : "";
+    return (match[2] || "").toLowerCase() === wantedArch;
+}
+
 function getLibraries(versionData){
 
 
@@ -583,7 +602,8 @@ function getLibraries(versionData){
 
         if(
             jar &&
-            fs.existsSync(jar)
+            fs.existsSync(jar) &&
+            nativeJarMatchesPlatform(jar)
         ){
 
             result.push(
